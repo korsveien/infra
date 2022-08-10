@@ -1,0 +1,59 @@
+version: "3"
+# More info at https://github.com/pi-hole/docker-pi-hole/ and https://docs.pi-hole.net/
+services:
+
+  nginx-proxy:
+    container_name: nginx
+    image: nginxproxy/nginx-proxy:latest
+    ports:
+      - "80:80"
+    volumes:
+      - '/var/run/docker.sock:/tmp/docker.sock:ro'
+    restart: unless-stopped
+
+  pihole:
+    container_name: pihole
+    image: pihole/pihole:latest
+    # For DHCP it is recommended to remove these ports and instead add: network_mode: "host"
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "8080:80/tcp"
+    environment:
+      TZ: 'Europe/Oslo'
+      WEBPASSWORD: "${WEBPASSWORD}"
+      REV_SERVER: "true"
+      REV_SERVER_DOMAIN: "lan"
+      REV_SERVER_TARGET: 192.168.16.1
+      REV_SERVER_CIDR: 192.168.16.0/24
+      DNSSEC: "true"
+      DNS_FQDN_REQUIRED: "true"
+      WEBTHEME: "default-dark"
+      PIHOLE_DNS: "1.1.1.1;1.0.0.1"
+      NETWORK_ACCESS: "internal" # Makes nginx-proxy only allow request from internal network
+      VIRTUAL_HOST: "pi.lan"
+      VIRTUAL_PATH: "/admin"
+    volumes:
+      - './etc-pihole:/etc/pihole'
+      - './etc-dnsmasq.d:/etc/dnsmasq.d'
+    restart: unless-stopped
+
+  homebridge:
+    container_name: homebridge
+    network_mode: host # TODO: make it run isolated
+    image: oznu/homebridge:ubuntu
+    restart: unless-stopped
+    port:
+      - 8581
+    environment:
+      HOMEBRIDGE_CONFIG_UI_PORT: 8581
+      NETWORK_ACCESS: "internal" # Makes nginx-proxy only allow request from internal network
+      VIRTUAL_HOST: "pi.lan"
+      VIRTUAL_PATH: "/home"
+    volumes:
+      - './homebridge:/homebridge'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10mb"
+        max-file: "1"
